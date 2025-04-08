@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Integrated Security Solutions</title>
+       <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+      
+</head>
+<body>
+    <img src="{{ url_for('static', filename='images/LOGO.png') }}" alt="My Logo" class="logo"">
+    <div class="container">
+        <header>
+            <h1>Integrated Security Solutions</h1>
+            <button id="masterToggle" class="btn btn-primary">
+                <span class="icon">🛡️</span>
+                <span class="text">Turn On Integrated Solutions</span>
+            </button>
+            <div class="header-buttons">
+                <button id="graylogBtn" class="btn btn-secondary">Open Graylog</button>
+                <button id="downloadReportBtn" class="btn btn-secondary">
+                 <span class="icon">📥</span>
+                          Download Latest Report
+                </button>
+            </div>
+        </header>
+
+        <div class="systems-grid">
+            <div class="system-card" data-system="ids">
+                <div class="system-header">
+                    <h2>Signature IDS</h2>
+                    <div class="status-badge">INACTIVE</div>
+                </div>
+                <div class="system-content">
+                    <label class="switch">
+                        <input type="checkbox" class="system-toggle">
+                        <span class="slider"></span>
+                    </label>
+                    <span class="status-text">System Inactive</span>
+                </div>
+            </div>
+
+            <div class="system-card" data-system="ips">
+                <div class="system-header">
+                    <h2>Snort IPS</h2>
+                    <div class="status-badge">INACTIVE</div>
+                </div>
+                <div class="system-content">
+                    <label class="switch">
+                        <input type="checkbox" class="system-toggle">
+                        <span class="slider"></span>
+                    </label>
+                    <span class="status-text">System Inactive</span>
+                </div>
+            </div>
+
+            <div class="system-card" data-system="honeypot">
+                <div class="system-header">
+                    <h2>Graylog</h2>
+                    <div class="status-badge">INACTIVE</div>
+                </div>
+                <div class="system-content">
+                    <label class="switch">
+                        <input type="checkbox" class="system-toggle">
+                        <span class="slider"></span>
+                    </label>
+                    <span class="status-text">System Inactive</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="toast"></div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
