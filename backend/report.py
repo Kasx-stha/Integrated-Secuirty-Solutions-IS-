@@ -1,7 +1,6 @@
+# Import required libraries for datetime, system interaction, plotting, PDF generation, email sending, and regex
 import datetime
-import requests
 import os
-import json
 import matplotlib.pyplot as plt
 from collections import Counter
 from reportlab.lib.pagesizes import letter
@@ -22,133 +21,132 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
 from email import encoders
-import re
 from email.mime.text import MIMEText
-from fpdf import FPDF
+import re
 
-# -------------------------------------------------
-# Configuration
-# -------------------------------------------------
-GRAYLOG_URL = "http://192.168.196.128:9000/api/search/universal/relative"
-GRAYLOG_HEADERS = {
-    "X-Requested-By": "PythonScript",
-    "Authorization": "Basic YWRtaW46QWJjZC4xMjM=",
-    "Accept": "application/json"
-}
+# File paths and email configuration
 IDS_LOG_PATH = "/home/kali/IDS/ids.log"
 IPS_LOG_PATH = "/usr/local/etc/snort/alert_fast.txt"
-
 EMAIL_CREDENTIALS = {
     "from_email": "kasxstha@gmail.com",
     "to_email": "shresthakashish0@gmail.com",
     "password": "wjjkxitgsjmcahdq"  
 }
-
 logo_path = "/home/kali/Project/frontend/static/images/LOGO.png"
 
-# -------------------------------------------------
-# Functions
-# -------------------------------------------------
+# Determine reporting time window: from yesterday 5 PM to today 5 PM
+now = datetime.datetime.now()
+today_5pm = now.replace(hour=17, minute=0, second=0, microsecond=0)
 
-def fetch_graylog_logs():
-    """Fetch logs from Graylog API with JSON handling."""
-    try:
-        response = requests.get(
-            GRAYLOG_URL,
-            headers=GRAYLOG_HEADERS,
-            params={
-                "query": "*",
-                "range": 86400,
-                "limit": 100,
-                "filter": "streams:000000000000000000000001"
-            },
-            verify=False
-        )
-        response.raise_for_status()
+if now < today_5pm:
+    end_time = today_5pm
+else:
+    end_time = today_5pm
+start_time = end_time - datetime.timedelta(days=1)
 
-        logs = []
-        for message in response.json().get('messages', []):
-            log = message.get('message', {})
-            logs.append({
-                "timestamp": log.get('timestamp'),
-                "message": log.get('message'),
-                "source": log.get('source')
-            })
-        return logs
+# Show debug window range
+print("▶️ DEBUG TIME WINDOW")
+print("Now:        ", now)
+print("Start Time: ", start_time)
+print("End Time:   ", end_time)
 
-    except Exception as e:
-        print(f"[!] Graylog API error: {str(e)}")
-        return []
+# Parse a multiline IDS log entry and extract structured information
+def parse_ids_log_line_multiline(lines):
+    event = {}
+    for line in lines:
+        line = line.strip()
+        if "[ALERT]" in line:
+            event["attack_type"] = line.split("[ALERT]")[-1].strip()
+        elif line.startswith("Timestamp:"):
+            event["timestamp"] = line.split("Timestamp:")[1].strip()
+        elif line.startswith("Source:"):
+            event["source_ip"] = line.split("Source:")[1].strip()
+        elif line.startswith("Destination:"):
+            event["dest_ip"] = line.split("Destination:")[1].strip()
 
-
-def parse_ids_log_line(line):
-    """Parse a single IDS log line."""
-    patterns = [
-        re.compile(
-            r"(\d{2}/\d{2}/\d{4}-\d{2}:\d{2}:\d{2}\.\d+)\s+\[.*?\]\s+([\w\s]+?)\s+(\d+\.\d+\.\d+\.\d+):\d+\s+->\s+(\d+\.\d+\.\d+\.\d+):\d+"
-        ),
-        re.compile(
-            r"\[.*?\]\s+(\d+\.\d+\.\d+\.\d+):\d+\s+->\s+(\d+\.\d+\.\d+\.\d+):\d+.*?\[Classification:\s+(.*?)\]\s+\[Priority:\s+\d+\]"
-        )
-    ]
-
-    for pattern in patterns:
-        match = pattern.search(line)
-        if match:
-            if len(match.groups()) == 4:
-                return {
-                    "timestamp": match.group(1),
-                    "attack_type": match.group(2).strip(),
-                    "source_ip": match.group(3),
-                    "dest_ip": match.group(4)
-                }
-            elif len(match.groups()) == 3:
-                return {
-                    "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    "attack_type": match.group(3).strip(),
-                    "source_ip": match.group(1).split(":")[0],
-                    "dest_ip": match.group(2).split(":")[0]
-                }
+    if all(k in event for k in ["timestamp", "attack_type", "source_ip", "dest_ip"]):
+        try:
+            ts = datetime.datetime.strptime(event["timestamp"], "%Y-%m-%d %H:%M:%S")
+            if start_time <= ts < end_time:
+                print(f"[DEBUG] Included log at {event['timestamp']} : {event['attack_type']}")
+                return f"{event['timestamp']} - {event['attack_type']} from {event['source_ip']} to {event['dest_ip']}"
+            else:
+                print(f"[DEBUG] Skipped log at {event['timestamp']} (out of range)")
+        except ValueError:
+            print(f"[DEBUG] Invalid timestamp format in line block: {event.get('timestamp')}")
     return None
 
+# Read and parse IDS logs
 
 def fetch_ids_logs():
-    """Fetch and parse IDS logs."""
     logs = []
     try:
         with open(IDS_LOG_PATH, "r") as f:
-            for line in f:
-                parsed = parse_ids_log_line(line)
+            lines = f.readlines()
+
+        buffer = []
+        for line in lines:
+            if "[ALERT]" in line and buffer:
+                parsed = parse_ids_log_line_multiline(buffer)
                 if parsed:
-                    logs.append(
-                        f"{parsed['timestamp']} - {parsed['attack_type']} "
-                        f"from {parsed['source_ip']} to {parsed['dest_ip']}"
-                    )
+                    logs.append(parsed)
+                buffer = [line]
+            else:
+                buffer.append(line)
+
+        if buffer:
+            parsed = parse_ids_log_line_multiline(buffer)
+            if parsed:
+                logs.append(parsed)
+
         return logs
     except Exception as e:
         print(f"[!] IDS log error: {str(e)}")
         return []
 
-
+# Read and filter IPS logs (Snort fast alert format)
 def fetch_ips_logs():
-    """Fetch IPS logs."""
+    logs = []
     try:
         with open(IPS_LOG_PATH, "r") as f:
-            return [line.strip() for line in f.readlines()]
+            lines = f.readlines()
+
+        current_year = datetime.datetime.now().year
+
+        for line in lines:
+            line = line.strip()
+            match = re.match(r"(\d{2}/\d{2})-(\d{2}:\d{2}:\d{2}\.\d+)", line)
+            if match:
+                date_part = match.group(1)  # MM/DD
+                time_part = match.group(2)  # HH:MM:SS.micro
+                timestamp_str = f"{current_year}/{date_part} {time_part.split('.')[0]}"
+                try:
+                    ts = datetime.datetime.strptime(timestamp_str, "%Y/%m/%d %H:%M:%S")
+                    if start_time <= ts < end_time:
+                        print(f"[DEBUG] Included IPS log at {ts}")
+                        logs.append(line)
+                    else:
+                        print(f"[DEBUG] Skipped IPS log at {ts} (out of range)")
+                except ValueError as ve:
+                    print(f"[DEBUG] Error parsing timestamp: {timestamp_str} - {ve}")
+        return logs
+
     except Exception as e:
         print(f"[!] IPS log error: {str(e)}")
         return []
 
-
+# Categorize logs into attack types and identify suspicious source IPs
 def categorize_logs(logs):
-    """Categorize logs by attack types and count top IPs."""
+    if not logs:
+        return {}, []
+
     patterns = {
-        "SQL Injection": re.compile(r"sql.*?injection|union.*?select", re.I),
-        "XSS": re.compile(r"<script>|xss", re.I),
-        "DDoS": re.compile(r"flood|ddos|syn.*?ack", re.I),
-        "Buffer Overflow": re.compile(r"overflow|buffer", re.I),
-        "DNS Tunneling": re.compile(r"dns.*?tunnel|base64.*?query", re.I),
-        "Port Scan": re.compile(r"port.*?scan|multiple.*?ports", re.I)
+        "SQL Injection": re.compile(r"sql.*injection|SQL_Injection_Basic", re.I),
+        "XSS": re.compile(r"cross.?site.?scripting|xss", re.I),
+        "DDoS": re.compile(r"ddos|icmp flood|DoS|packet rate exceeded", re.I),
+        "Phishing": re.compile(r"phishing|Phishing Attempt", re.I),
+        "Malware": re.compile(r"malware|trojan|virus|worm|exploit", re.I),
+        "Dark Web": re.compile(r"dark web|tor|onion|black market|dns tunnel|base64", re.I)
     }
 
     counts = {attack: 0 for attack in patterns}
@@ -158,66 +156,44 @@ def categorize_logs(logs):
         for attack, pattern in patterns.items():
             if pattern.search(log):
                 counts[attack] += 1
-        ips = re.findall(r"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}", log)
-        ip_counter.update(ips)
+
+        # Only count source IPs (not destination)
+        src_match = re.search(r"from (\d{1,3}(?:\.\d{1,3}){3})", log)
+        if src_match:
+            ip_counter.update([src_match.group(1)])
 
     return counts, ip_counter.most_common(5)
 
-
+# Generate the PDF report with summaries, tables, and charts
 def create_pdf_report(report_filename, attack_counts, top_ips, logo_path):
-    """Create a PDF report with attack summaries, charts, and a logo."""
     doc = SimpleDocTemplate(report_filename, pagesize=letter)
     styles = getSampleStyleSheet()
     story = []
 
-    # Custom Centered Title Style
-    title_style = ParagraphStyle(
-        'Title',
-        parent=styles['Title'],
-        fontSize=24,
-        spaceAfter=24,
-        alignment=1  # Center alignment
-    )
+    # Define text styles
+    title_style = ParagraphStyle('Title', parent=styles['Title'], fontSize=24, spaceAfter=24, alignment=1)
+    normal_style = ParagraphStyle('Normal', parent=styles['Normal'], leading=18)
+    list_style = ParagraphStyle('Heading4', parent=styles['Heading4'], leading=18, alignment=1)
+    heading_style = ParagraphStyle('Heading1', parent=styles['Heading1'], spaceAfter=12)
 
-    # Normal style with 1.5 line spacing
-    normal_style = ParagraphStyle(
-        'Normal',
-        parent=styles['Normal'],
-        leading=18  # 1.5 * default line height
-    )
-    
-    list_style = ParagraphStyle(
-         'Heading4',
-          parent=styles['Heading4'],
-          leading=18,
-          alignment=1
-    )
-
-    # Heading style with 1.5 spacing
-    heading_style = ParagraphStyle(
-        'Heading1',
-        parent=styles['Heading1'],
-        spaceAfter=12,
-    )
-
-
-    # Cover Page (All elements centered)
-    story.append(Spacer(1,100))
-    story.append(Image(logo_path, width=2 * inch, height=2 * inch)) 
-    story.append(Spacer(1,50))
+    # Cover Page
+    story.append(Spacer(1, 100))
+    story.append(Image(logo_path, width=2 * inch, height=2 * inch))
+    story.append(Spacer(1, 50))
     story.append(Paragraph("Integrated Security Solutions", title_style))
     story.append(Spacer(1, 12))
     story.append(Paragraph("Daily Security Report", title_style))
     story.append(Spacer(1, 50))
     story.append(PageBreak())
 
-    story.append(Spacer(1,250))
+    # Intro Page
+    story.append(Spacer(1, 250))
     story.append(Paragraph("This report is generated via Integrated Security Solutions (IS)", list_style))
     story.append(Spacer(1, 20))
     story.append(Paragraph(f"Generated at: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", list_style))
     story.append(PageBreak())
 
-    # Table of Contents (TOC) - 1.5 line spacing
+    # Table of Contents
     story.append(Paragraph("Table of Contents", heading_style))
     story.append(Spacer(1, 12))
     story.append(Paragraph("1. Attack Summary", normal_style))
@@ -227,16 +203,17 @@ def create_pdf_report(report_filename, attack_counts, top_ips, logo_path):
     story.append(Paragraph("3. Attack Types Distribution", normal_style))
     story.append(PageBreak())
 
-    # Attack Summary Table
+    # Attack Summary
     story.append(Paragraph("1. Attack Summary", heading_style))
     story.append(Spacer(1, 12))
-    story.append(Paragraph("The table below provides a summary of the attacks for today. For detailed information, please refer to Graylog.", normal_style))
+    story.append(Paragraph("The table below provides a summary of the attacks for today.", normal_style))
     story.append(Spacer(1, 12))
 
     table_data = [["Attack Type", "Count"]]
     for attack, count in attack_counts.items():
         table_data.append([attack, str(count)])
 
+    # Format summary table
     attack_table = Table(table_data, colWidths=[300, 100])
     attack_table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4870a5')),
@@ -250,7 +227,7 @@ def create_pdf_report(report_filename, attack_counts, top_ips, logo_path):
     story.append(attack_table)
     story.append(PageBreak())
 
-    # Suspicious IPs Table
+    # Suspicious IP Section
     story.append(Paragraph("2. Suspicious IP Addresses", heading_style))
     story.append(Spacer(1, 12))
 
@@ -258,6 +235,7 @@ def create_pdf_report(report_filename, attack_counts, top_ips, logo_path):
     for ip, count in top_ips:
         ip_data.append([ip, str(count)])
 
+    # Format suspicious IP table
     ip_table = Table(ip_data, colWidths=[300, 100])
     ip_table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4870a5')),
@@ -271,38 +249,43 @@ def create_pdf_report(report_filename, attack_counts, top_ips, logo_path):
     story.append(ip_table)
     story.append(PageBreak())
 
-    # Attack Distribution Chart
+    # Attack Chart
     story.append(Paragraph("3. Attack Types Distribution", heading_style))
     story.append(Spacer(1, 12))
-    story.append(Paragraph("The pie chart below illustrates the different types of attacks detected by the Integrated Secuity Solution(IS).", normal_style))
+    story.append(Paragraph("The bar chart below illustrates the different types of attacks detected by the Integrated Security Solution (IS).", normal_style))
+
     total_attacks = sum(attack_counts.values())
     if total_attacks > 0:
-        # Generate Pie Chart
-        plt.figure(figsize=(6, 6))
         labels = [attack for attack, count in attack_counts.items() if count > 0]
-        sizes = [count for count in attack_counts.values() if count > 0]
+        values = [count for attack, count in attack_counts.items() if count > 0]
 
-        plt.pie(
-            sizes,
-            labels=labels,
-            autopct='%1.1f%%',
-            startangle=90,
-            colors=['#e1eeff', '#66b3ff', '#99ff99', '#ffcc99', '#c2c2f0', '#ffb3e6']
-        )
+        # Build the bar chart
+        plt.figure(figsize=(10, 5))
+        bars = plt.bar(labels, values)
+        plt.yscale('log')
+        plt.xlabel("Attack Type")
+        plt.ylabel("Count (Log Scale)")
         plt.title("Attack Types Distribution")
+        plt.xticks(rotation=45)
+
+        for bar in bars:
+            yval = bar.get_height()
+            plt.text(bar.get_x() + bar.get_width()/2, yval, f'{int(yval)}', ha='center', va='bottom', fontsize=8)
+
         chart_path = "/tmp/attack_chart.png"
-        plt.savefig(chart_path, format="png")
+        plt.tight_layout()
+        plt.savefig(chart_path)
         plt.close()
 
-        # Centered Image on Last Page
-        story.append(Spacer(1, 60))  # Move image to center of the page
-        story.append(Image(chart_path, width=4*inch, height=4*inch))
+        # Add chart to PDF
+        story.append(Spacer(1, 30))
+        story.append(Image(chart_path, width=5.5*inch, height=3*inch))
         story.append(Spacer(1, 12))
         story.append(Paragraph("Figure 1: Distribution of detected attack types.", list_style))
     else:
         story.append(Paragraph("No attacks detected during the reporting period.", normal_style))
 
-    # Page Number Footer
+    # Page numbering
     def add_page_number(canvas, doc):
         page_num = canvas.getPageNumber()
         text = f"Page {page_num}"
@@ -311,30 +294,14 @@ def create_pdf_report(report_filename, attack_counts, top_ips, logo_path):
 
     doc.build(story, onFirstPage=add_page_number, onLaterPages=add_page_number)
 
-
-# -------------------------------------------------
-# Main Execution
-# -------------------------------------------------
-logs = fetch_ids_logs()
-ips_logs = fetch_ips_logs()
-graylog_logs = fetch_graylog_logs()
-
-# Categorize logs and get attack counts and top IPs
-attack_counts, top_ips = categorize_logs(logs)
-
-# Create the report PDF
-report_filename = "/tmp/security_report.pdf"
-create_pdf_report(report_filename, attack_counts, top_ips, logo_path)
-
-print(f"Report generated at {report_filename}")
+# Send the generated PDF via email
 def send_email_with_attachment(report_filename):
-    """Send an email with the PDF report as attachment."""
     msg = MIMEMultipart()
     msg['From'] = EMAIL_CREDENTIALS['from_email']
     msg['To'] = EMAIL_CREDENTIALS['to_email']
     msg['Subject'] = "Daily Security Report - " + datetime.datetime.now().strftime("%Y-%m-%d")
 
-    body = "Dear Admin, \n\n Please find the attached deaily security report from Integrated Secuirty Solutions. This is an automated report.\n\n Sincerely, \n\n Integrated Secuirty Solutions (IS)"
+    body = "Dear Admin,\n\nPlease find the attached daily security report from Integrated Security Solutions. This is an automated report.\n\nSincerely,\n\nIntegrated Security Solutions (IS)"
     msg.attach(MIMEText(body))
 
     try:
@@ -342,10 +309,7 @@ def send_email_with_attachment(report_filename):
             part = MIMEBase('application', 'octet-stream')
             part.set_payload(f.read())
         encoders.encode_base64(part)
-        part.add_header(
-            'Content-Disposition',
-            f'attachment; filename="{os.path.basename(report_filename)}"'
-        )
+        part.add_header('Content-Disposition', f'attachment; filename="{os.path.basename(report_filename)}"')
         msg.attach(part)
     except FileNotFoundError:
         print(f"[!] Report file {report_filename} not found.")
@@ -354,29 +318,17 @@ def send_email_with_attachment(report_filename):
     try:
         with smtplib.SMTP('smtp.gmail.com', 587) as server:
             server.starttls()
-            server.login(
-                EMAIL_CREDENTIALS['from_email'],
-                EMAIL_CREDENTIALS['password']
-            )
+            server.login(EMAIL_CREDENTIALS['from_email'], EMAIL_CREDENTIALS['password'])
             server.send_message(msg)
         print("[+] Email sent successfully.")
     except Exception as e:
         print(f"[!] Email failed: {str(e)}")
 
-
-# -------------------------------------------------
-# Main Execution
-# -------------------------------------------------
+# Main execution logic
 if __name__ == "__main__":
-    graylog_logs = fetch_graylog_logs()
     ids_logs = fetch_ids_logs()
     ips_logs = fetch_ips_logs()
-
-    all_logs = (
-            [log['message'] for log in graylog_logs] +
-            ids_logs +
-            ips_logs
-    )
+    all_logs = ids_logs + ips_logs
 
     if not all_logs:
         print("[!] No logs collected - skipping report generation.")
