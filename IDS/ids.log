@@ -1,0 +1,52 @@
+2025-04-20 11:13:08 - INFO - Snort verified: 
+   ,,_     -*> Snort++ <*-
+  o"  )~   Version 3.6...
+2025-04-20 11:17:33 - INFO - Snort verified: 
+   ,,_     -*> Snort++ <*-
+  o"  )~   Version 3.6...
+2025-04-20 11:17:37 - WARNING - [ALERT] DoS/DDoS Attack detected!
+  Timestamp: 2025-04-20 11:17:37
+  Source: 192.168.196.132
+  Destination: 192.168.196.128
+  Details: ICMP flood detected from 192.168.196.132
+  Signature: ICMP packet rate exceeded threshold
+  Confidence: 85%
+
+2025-04-20 11:17:37 - INFO - Alert detected: DoS/DDoS Attack. Already forwarded to Snort for further actions.
+2025-04-20 11:17:42 - WARNING - [ALERT] DoS/DDoS Attack detected!
+  Timestamp: 2025-04-20 11:17:42
+  Source: 192.168.196.132
+  Destination: 192.168.196.128
+  Details: ICMP flood detected from 192.168.196.132
+  Signature: ICMP packet rate exceeded threshold
+  Confidence: 85%
+
+2025-04-20 11:17:42 - INFO - Alert detected: DoS/DDoS Attack. Already forwarded to Snort for further actions.
+2025-04-20 17:36:18 - INFO - Snort verified: 
+   ,,_     -*> Snort++ <*-
+  o"  )~   Version 3.6...
+2025-04-20 17:54:24 - INFO - Snort verified: 
+   ,,_     -*> Snort++ <*-
+  o"  )~   Version 3.6...
+2025-04-20 17:54:24 - ERROR - Error during packet capture: [Errno 1] Operation not permitted
+2025-04-20 17:54:59 - INFO - Snort verified: 
+   ,,_     -*> Snort++ <*-
+  o"  )~   Version 3.6...
+2025-04-20 19:15:44 - INFO - Snort verified: 
+   ,,_     -*> Snort++ <*-
+  o"  )~   Version 3.6...
+2025-04-20 19:48:44 - INFO - Snort verified: 
+   ,,_     -*> Snort++ <*-
+  o"  )~   Version 3.6...
+2025-04-21 10:53:46 - INFO - Snort verified: 
+   ,,_     -*> Snort++ <*-
+  o"  )~   Version 3.6...
+2025-04-21 18:22:43 - INFO - Snort verified: 
+   ,,_     -*> Snort++ <*-
+  o"  )~   Version 3.6...
+2025-04-21 19:23:10 - INFO - Snort verified: 
+   ,,_     -*> Snort++ <*-
+  o"  )~   Version 3.6...
+2025-04-21 19:25:26 - INFO - Snort verified: 
+   ,,_     -*> Snort++ <*-
+  o"  )~   Version 3.6...
