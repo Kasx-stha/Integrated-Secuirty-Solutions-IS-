@@ -28,9 +28,9 @@ import re
 IDS_LOG_PATH = "/home/kali/IDS/ids.log"
 IPS_LOG_PATH = "/usr/local/etc/snort/alert_fast.txt"
 EMAIL_CREDENTIALS = {
-    "from_email": "kasxstha@gmail.com",
-    "to_email": "shresthakashish0@gmail.com",
-    "password": "wjjkxitgsjmcahdq"  
+    "from_email": "",
+    "to_email": "",
+    "password": ""  
 }
 logo_path = "/home/kali/Project/frontend/static/images/LOGO.png"
 
